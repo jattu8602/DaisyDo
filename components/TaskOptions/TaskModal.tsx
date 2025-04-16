@@ -8,6 +8,7 @@ import {
   Switch,
   Modal,
   Platform,
+  Alert,
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import DateTimePicker from '@react-native-community/datetimepicker'
@@ -21,11 +22,19 @@ type Task = {
   time?: string
   color: string
   has_reminder?: boolean
+  reminder_time?: string
+  reminder_frequency?: 'once' | 'daily' | 'weekly' | 'monthly'
+  reminder_end_date?: string
+  voice_note_url?: string
   priority: 'high' | 'medium' | 'low'
   is_completed?: boolean
   year: number
   month: number
   day: number
+  is_daily?: boolean
+  is_routine?: boolean
+  attachment_url?: string
+  start_date?: string
 }
 
 // CalendarDay type
@@ -66,27 +75,16 @@ const TaskModal = ({
   days,
 }: TaskModalProps) => {
   const [showTimePicker, setShowTimePicker] = useState(false)
+  const [showReminderTimePicker, setShowReminderTimePicker] = useState(false)
   const [selectedTime, setSelectedTime] = useState(new Date())
-  const [description, setDescription] = useState('')
+  const [selectedReminderTime, setSelectedReminderTime] = useState(new Date())
 
-  // Set default color to red and reminder to true when component mounts
-  React.useEffect(() => {
-    if (!task.color) {
-      setTask({
-        ...task,
-        color: '#FF3B30',
-        has_reminder: true,
-        year: selectedYear,
-        month: selectedMonth,
-        day: selectedDay,
-      })
-    }
-
-    // Initialize local description state if task has description
-    if (task.description) {
-      setDescription(task.description)
-    }
-  }, [])
+  const formatDate = (date: Date) => {
+    const day = date.getDate().toString().padStart(2, '0')
+    const month = (date.getMonth() + 1).toString().padStart(2, '0')
+    const year = date.getFullYear()
+    return `${day}-${month}-${year}`
+  }
 
   const handleTimeChange = (event: any, selectedDate?: Date) => {
     setShowTimePicker(false)
@@ -97,22 +95,49 @@ const TaskModal = ({
         time: selectedDate.toLocaleTimeString([], {
           hour: '2-digit',
           minute: '2-digit',
+          hour12: true,
+        }),
+      })
+    }
+  }
+
+  const handleReminderTimeChange = (event: any, selectedDate?: Date) => {
+    setShowReminderTimePicker(false)
+    if (selectedDate) {
+      setSelectedReminderTime(selectedDate)
+      setTask({
+        ...task,
+        reminder_time: selectedDate.toLocaleTimeString([], {
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: true,
         }),
       })
     }
   }
 
   const handleSaveTask = () => {
-    // Create a new object without the description field
-    const { description: _, ...taskToSave } = task
+    if (!task.title) {
+      Alert.alert('Error', 'Please enter a task title')
+      return
+    }
 
-    onSave({
-      ...taskToSave,
-      color: taskToSave.is_completed ? '#34C759' : '#FF3B30',
+    const taskToSave: Partial<Task> = {
+      ...task,
       year: selectedYear,
       month: selectedMonth,
       day: selectedDay,
-    })
+      is_completed: false,
+      priority: task.priority || 'medium',
+      color: task.color || '#FF3B30',
+      has_reminder: task.has_reminder || false,
+      is_routine: task.is_routine || false,
+      attachment_url: task.attachment_url,
+      reminder_time: task.reminder_time,
+      time: task.time
+    }
+
+    onSave(taskToSave)
   }
 
   return (
@@ -122,90 +147,56 @@ const TaskModal = ({
           <View style={styles.modalHeader}>
             <ThemedText style={styles.modalTitle}>Add New Task</ThemedText>
             <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-              <Ionicons name="close" size={24} color="#666" />
+              <Ionicons name="close" size={20} color="#666" />
             </TouchableOpacity>
           </View>
 
-          {/* Selected Date Display */}
-          <View style={styles.selectedDateContainer}>
-            <Ionicons name="calendar" size={20} color="#FF3B30" />
-            <ThemedText style={styles.selectedDateText}>
-              {monthNames[selectedMonth]} {selectedDay}, {selectedYear}
-            </ThemedText>
-          </View>
+          <ScrollView style={styles.modalScrollView} showsVerticalScrollIndicator={false}>
+            {/* Date Display */}
+            <View style={styles.dateDisplay}>
+              <ThemedText style={styles.dateText}>
+                {formatDate(new Date(selectedYear, selectedMonth, selectedDay))}
+              </ThemedText>
+            </View>
 
-          <ScrollView
-            style={styles.modalScrollView}
-            showsVerticalScrollIndicator={false}
-          >
             {/* Task Title Input */}
             <View style={styles.inputContainer}>
-              <Ionicons
-                name="create-outline"
-                size={22}
-                color="#FF3B30"
-                style={styles.inputIcon}
-              />
               <TextInput
                 style={styles.input}
-                placeholder="Task Title"
+                placeholder="What do you need to get done?"
                 value={task.title}
                 onChangeText={(text) => setTask({ ...task, title: text })}
                 placeholderTextColor="#999"
               />
             </View>
 
-            {/* Task Description Input */}
-            <View style={styles.descriptionContainer}>
-              <Ionicons
-                name="document-text-outline"
-                size={22}
-                color="#FF3B30"
-                style={styles.inputIcon}
-              />
-              <TextInput
-                style={styles.descriptionInput}
-                placeholder="Task Description"
-                value={description}
-                onChangeText={setDescription}
-                placeholderTextColor="#999"
-                multiline
-                numberOfLines={4}
-                textAlignVertical="top"
-              />
-            </View>
-
             {/* Time Selection */}
-            <View style={styles.timeSection}>
+            <View style={styles.section}>
               <ThemedText style={styles.sectionTitle}>Time</ThemedText>
               <TouchableOpacity
                 style={styles.timeButton}
                 onPress={() => setShowTimePicker(true)}
               >
                 <View style={styles.timeButtonContent}>
-                  <Ionicons name="time-outline" size={24} color="#FF3B30" />
-                  <View style={styles.timeTextContainer}>
-                    <ThemedText style={styles.timeValue}>
-                      {task.time || 'Set task time'}
-                    </ThemedText>
-                  </View>
+                  <Ionicons name="time-outline" size={18} color="#FF3B30" />
+                  <ThemedText style={styles.timeValue}>
+                    {task.time || 'Set task time'}
+                  </ThemedText>
                 </View>
-                <Ionicons name="chevron-forward" size={20} color="#999" />
               </TouchableOpacity>
+              {showTimePicker && (
+                <DateTimePicker
+                  value={selectedTime}
+                  mode="time"
+                  onChange={handleTimeChange}
+                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                  is24Hour={false}
+                />
+              )}
             </View>
 
-            {showTimePicker && (
-              <DateTimePicker
-                value={selectedTime}
-                mode="time"
-                onChange={handleTimeChange}
-                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                is24Hour={true}
-              />
-            )}
-
             {/* Priority Selection */}
-            <View style={styles.priorityContainer}>
+            <View style={styles.section}>
               <ThemedText style={styles.sectionTitle}>Priority</ThemedText>
               <View style={styles.priorityButtons}>
                 {[
@@ -231,8 +222,7 @@ const TaskModal = ({
                     <ThemedText
                       style={[
                         styles.priorityText,
-                        task.priority === priority.value &&
-                          styles.selectedPriorityText,
+                        task.priority === priority.value && styles.selectedPriorityText,
                       ]}
                     >
                       {priority.label}
@@ -242,35 +232,60 @@ const TaskModal = ({
               </View>
             </View>
 
-            {/* Reminder Option */}
-            <View style={styles.reminderContainer}>
+            {/* Reminder Settings */}
+            <View style={styles.section}>
               <View style={styles.reminderHeader}>
-                <Ionicons
-                  name="notifications-outline"
-                  size={24}
-                  color="#FF3B30"
+                <ThemedText style={styles.reminderText}>Reminder</ThemedText>
+                <Switch
+                  value={task.has_reminder}
+                  onValueChange={(value) =>
+                    setTask({ ...task, has_reminder: value })
+                  }
+                  trackColor={{ false: '#E0E0E0', true: '#FF3B3050' }}
+                  thumbColor={task.has_reminder ? '#FF3B30' : '#FFF'}
                 />
-                <View style={styles.reminderTextContainer}>
-                  <ThemedText style={styles.reminderText}>Reminder</ThemedText>
-                  <ThemedText style={styles.reminderSubtext}>
-                    You will be notified 5 minutes before the set time
-                  </ThemedText>
-                </View>
               </View>
-              <Switch
-                value={task.has_reminder}
-                onValueChange={(value) =>
-                  setTask({ ...task, has_reminder: value })
-                }
-                trackColor={{ false: '#E0E0E0', true: '#FF3B3050' }}
-                thumbColor={task.has_reminder ? '#FF3B30' : '#FFF'}
-              />
+
+              {task.has_reminder && (
+                <TouchableOpacity
+                  style={styles.timeButton}
+                  onPress={() => setShowReminderTimePicker(true)}
+                >
+                  <View style={styles.timeButtonContent}>
+                    <Ionicons name="time-outline" size={18} color="#FF3B30" />
+                    <ThemedText style={styles.timeValue}>
+                      {task.reminder_time || 'Set reminder time'}
+                    </ThemedText>
+                  </View>
+                </TouchableOpacity>
+              )}
+              {showReminderTimePicker && (
+                <DateTimePicker
+                  value={selectedReminderTime}
+                  mode="time"
+                  onChange={handleReminderTimeChange}
+                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                  is24Hour={false}
+                />
+              )}
             </View>
 
-            <TouchableOpacity
-              style={styles.saveButton}
-              onPress={handleSaveTask}
-            >
+            {/* Routine Task */}
+            <View style={styles.section}>
+              <View style={styles.routineHeader}>
+                <ThemedText style={styles.routineText}>Routine Task</ThemedText>
+                <Switch
+                  value={task.is_routine}
+                  onValueChange={(value) =>
+                    setTask({ ...task, is_routine: value })
+                  }
+                  trackColor={{ false: '#E0E0E0', true: '#FF3B3050' }}
+                  thumbColor={task.is_routine ? '#FF3B30' : '#FFF'}
+                />
+              </View>
+            </View>
+
+            <TouchableOpacity style={styles.saveButton} onPress={handleSaveTask}>
               <ThemedText style={styles.saveButtonText}>Save Task</ThemedText>
             </TouchableOpacity>
           </ScrollView>
@@ -291,37 +306,20 @@ const styles = StyleSheet.create({
   taskModalContent: {
     backgroundColor: 'white',
     width: '100%',
-    borderRadius: 20,
-    padding: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.3,
-    shadowRadius: 20,
-    elevation: 10,
+    borderRadius: 12,
+    padding: 16,
     maxHeight: '85%',
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20,
-    paddingBottom: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    marginBottom: 16,
   },
-  selectedDateContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#f8f8f8',
-    borderRadius: 10,
-    padding: 10,
-    marginBottom: 18,
-  },
-  selectedDateText: {
-    fontSize: 16,
-    fontWeight: '500',
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
     color: '#333',
-    marginLeft: 8,
   },
   closeButton: {
     padding: 8,
@@ -329,141 +327,113 @@ const styles = StyleSheet.create({
   modalScrollView: {
     width: '100%',
   },
-  modalTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
+  section: {
+    marginBottom: 16,
+  },
+  sectionTitle: {
+    fontSize: 14,
+    fontWeight: '600',
     color: '#333',
+    marginBottom: 8,
   },
   inputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
     backgroundColor: '#f5f5f5',
-    borderRadius: 12,
+    borderRadius: 8,
     paddingHorizontal: 12,
     marginBottom: 16,
-    height: 55,
-  },
-  inputIcon: {
-    marginRight: 10,
+    height: 45,
   },
   input: {
     flex: 1,
-    fontSize: 16,
+    fontSize: 14,
     color: '#333',
     height: '100%',
   },
-  descriptionContainer: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
+  dateDisplay: {
     backgroundColor: '#f5f5f5',
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    marginBottom: 22,
-    minHeight: 120,
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
+    alignItems: 'center',
   },
-  descriptionInput: {
-    flex: 1,
+  dateText: {
     fontSize: 16,
-    color: '#333',
-    textAlignVertical: 'top',
-    height: '100%',
-    paddingTop: 0,
-  },
-  sectionTitle: {
-    fontSize: 18,
     fontWeight: '600',
-    marginBottom: 12,
     color: '#333',
-  },
-  timeSection: {
-    marginBottom: 22,
   },
   timeButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 16,
     backgroundColor: '#f5f5f5',
-    borderRadius: 12,
+    borderRadius: 8,
+    padding: 12,
   },
   timeButtonContent: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  timeTextContainer: {
-    marginLeft: 12,
-  },
   timeValue: {
-    fontSize: 16,
-    fontWeight: '500',
+    fontSize: 14,
     color: '#333',
-  },
-  priorityContainer: {
-    marginBottom: 22,
+    marginLeft: 8,
   },
   priorityButtons: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    gap: 10,
+    gap: 8,
   },
   priorityButton: {
     flex: 1,
-    padding: 12,
-    borderRadius: 12,
+    padding: 8,
+    borderRadius: 8,
     alignItems: 'center',
     backgroundColor: '#f5f5f5',
   },
   priorityText: {
-    fontWeight: '500',
-    fontSize: 15,
+    fontSize: 13,
     color: '#555',
   },
   selectedPriorityText: {
     color: 'white',
     fontWeight: 'bold',
   },
-  reminderContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 16,
-    backgroundColor: '#f5f5f5',
-    borderRadius: 12,
-    marginBottom: 24,
-  },
   reminderHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-  },
-  reminderTextContainer: {
-    marginLeft: 12,
+    justifyContent: 'space-between',
+    backgroundColor: '#f5f5f5',
+    borderRadius: 8,
+    padding: 12,
   },
   reminderText: {
-    fontSize: 16,
+    fontSize: 14,
     color: '#333',
-    marginBottom: 4,
+    fontWeight: '500',
   },
-  reminderSubtext: {
-    fontSize: 12,
-    color: '#666',
+  routineHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#f5f5f5',
+    borderRadius: 8,
+    padding: 12,
+  },
+  routineText: {
+    fontSize: 14,
+    color: '#333',
+    fontWeight: '500',
   },
   saveButton: {
     backgroundColor: '#FF3B30',
-    padding: 16,
-    borderRadius: 12,
+    padding: 12,
+    borderRadius: 8,
     alignItems: 'center',
-    marginBottom: 16,
-    shadowColor: '#FF3B30',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-    elevation: 5,
+    marginTop: 16,
   },
   saveButtonText: {
     color: 'white',
     fontWeight: 'bold',
-    fontSize: 16,
+    fontSize: 14,
   },
 })
 

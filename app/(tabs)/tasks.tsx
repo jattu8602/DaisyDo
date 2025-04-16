@@ -16,15 +16,22 @@ const supabase = createClient(
 type Task = {
   id: string
   title: string
+  description?: string
   time?: string
   color: string
-  hasReminder?: boolean
-  hasAttachment?: boolean
+  has_reminder?: boolean
+  reminder_time?: string
+  reminder_frequency?: 'once' | 'daily' | 'weekly' | 'monthly'
+  reminder_end_date?: string
+  voice_note_url?: string
   priority: 'high' | 'medium' | 'low'
-  notes?: string
-  isDaily?: boolean
-  endDate?: string
-  isCompleted?: boolean
+  is_completed?: boolean
+  year: number
+  month: number
+  day: number
+  is_daily?: boolean
+  is_routine?: boolean
+  attachment_url?: string
 }
 
 export default function Tasks() {
@@ -59,7 +66,7 @@ export default function Tasks() {
 
     const { error } = await supabase
       .from('tasks')
-      .update({ isCompleted: !task.isCompleted })
+      .update({ is_completed: !task.is_completed })
       .eq('id', taskId)
 
     if (error) {
@@ -90,9 +97,9 @@ export default function Tasks() {
         onPress={() => toggleTaskCompletion(item.id)}
       >
         <Ionicons
-          name={item.isCompleted ? 'checkbox' : 'square-outline'}
+          name={item.is_completed ? 'checkbox' : 'square-outline'}
           size={24}
-          color={item.isCompleted ? '#4CAF50' : '#666'}
+          color={item.is_completed ? '#4CAF50' : '#666'}
         />
       </TouchableOpacity>
 
@@ -100,7 +107,7 @@ export default function Tasks() {
         <ThemedText
           style={[
             styles.taskTitle,
-            item.isCompleted && styles.completedTask
+            item.is_completed && styles.completedTask
           ]}
         >
           {item.title}
@@ -113,8 +120,8 @@ export default function Tasks() {
           </View>
         )}
 
-        {item.notes && (
-          <ThemedText style={styles.taskNotes}>{item.notes}</ThemedText>
+        {item.description && (
+          <ThemedText style={styles.taskNotes}>{item.description}</ThemedText>
         )}
       </View>
 
